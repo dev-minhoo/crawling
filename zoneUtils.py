@@ -133,11 +133,3 @@ def seleniumGetXPathElementsTextValue(driver, nWaitMaxTime, nMaxTryCount, sXPath
             return sResult
     return sResult
 
-###################################################################################################
-def downloadFile(url, file_name):
-    headers = {'User-Agent': 'user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'}
-
-    with open(file_name, "wb") as file:   # open in binary mode
-        response = get(url,headers=headers)               # get request
-        file.write(response.content)      # write to file
-    return 0

@@ -19,7 +19,7 @@ g_dateStart         = datetime.now()
 g_sBaseDir          = g_dateStart.strftime("%Y_%m_%d") # 오늘 날짜
 g_nWaitMaxTime      = 3 # 대기 시간
 g_sChromedriverPath = 'C:\\Python\\bin\\chromedriver.exe' # 크롬 드라이버
-g_sMainURL  = '' # 점속 url
+g_sMainURL  = '' # 접속 url
 g_WebBroswer        = None
 g_SQLite            = None
 g_sVersion          = "1"
@@ -28,22 +28,19 @@ g_sVersion          = "1"
 def initDB(sBaseDir) :
     sDataBase    = os.getcwd() + "\\" + sBaseDir + "\\" + "_Crawling.sqlite3"
     
-    # 경로에 해당 폴더 있는지 확인 후 없으면 생성
+    # 경로에 해당 DB 있는지 확인 후 없으면 생성
     if not os.path.exists(sBaseDir):
         os.mkdir(sBaseDir)
 
     # DB 존재 유무 확인 후 없으면 TABLE 생성
     bCreateTable = False
     if not os.path.exists(sDataBase):
-        bCreateTable = True 
-    
-    # DB 접속
-    oSQLite     = sqlite3.connect(sDataBase)
-    if oSQLite is None:
-        print("DB Create Error : " + sDataBase)
-        return None
+        bCreateTable = True
 
-    if bCreateTable:
+    if  bCreateTable :
+        # DB 생성 후
+        os.mkdir(sBaseDir)
+        oSQLite     = sqlite3.connect(sDataBase)
         cursor = oSQLite.cursor()
         if cursor is None:
             print("DB Create Cursor Error ...")
@@ -53,15 +50,23 @@ def initDB(sBaseDir) :
         cursor.execute(
             'CREATE TABLE "CRAWLING_TEST" (' +
                         '"CRAWLING_NO"	INTEGER NOT NULL, ' +  
-                        '"PATH"	TEXT NOT NULL, ' + 
-                        '"NAME"	TEXT NOT NULL, ' +                       
+                        '"CATALOG_PATH"	TEXT NOT NULL, ' + 
+                        '"CATALOG"	TEXT NOT NULL, ' +                       
 	                    '"COMMENT"	TEXT NOT NULL, ' +
                         '"CREATE_ON"	TIMESTAMP NOT NULL DEFAULT (datetime("now","localtime")), ' +  
                         '"DetailURL"  TEXT NOT NULL)')
         cursor.execute('CREATE INDEX "IDX_CRAWLING_CRAWLING_NO" ON "CRAWLING_TEST" ("CRAWLING_NO")')
-        cursor.execute('CREATE INDEX "IDX_CRAWLING_NAME" ON "CRAWLING_TEST" ("NAME")')
+        cursor.execute('CREATE INDEX "IDX_CRAWLING_CATALOG" ON "CRAWLING_TEST" ("CATALOG")')
+        cursor.execute('CREATE INDEX "IDX_CRAWLING_CATALOG_PATH" ON "CRAWLING_TEST" ("CATALOG_PATH")')
         cursor.execute('CREATE INDEX "IDX_CRAWLING_CREATE_ON" ON "CRAWLING_TEST" ("CREATE_ON")')
         oSQLite.commit()
+    else :
+        # DB가 생성 되어 있다면 TABLE 생성이 되어 있다는 가정하에 DB 접속
+        oSQLite     = sqlite3.connect(sDataBase)
+        
+    if oSQLite is None:
+        print("DB Create Error : " + sDataBase)
+        return None
 
     return oSQLite        
 
@@ -76,18 +81,19 @@ def getDBLastPath():
         sys.exit(1)
         g_SQLite.close()
 
-    sSQL = "SELECT CRAWLING_NO, PATH FROM CRAWLING_TEST ORDER BY CRAWLING_NO DESC LIMIT 1;"
+    sSQL = "SELECT CRAWLING_NO, CATALOG_PATH FROM CRAWLING_TEST ORDER BY CRAWLING_NO DESC LIMIT 1;"
     datas = cursor.execute(sSQL)
 
     sPath = ""
-    for row in datas:
-        sPath = row[1]
+    if datas is not None :
+        for row in datas:
+            sPath = row[1]
 
     cursor.close()
     return sPath
 
 ###################################################################################################
-def isDBPath(sFindPath):
+def isDBCatalogPath(sFindPath):
     global  g_SQLite
 
     ###############################################################################################
@@ -97,7 +103,7 @@ def isDBPath(sFindPath):
         sys.exit(1)
         g_SQLite.close()
 
-    sSQL = 'SELECT COUNT(*) FROM CRAWLING_TEST WHERE PATH LIKE("' + sFindPath + '%")'
+    sSQL = 'SELECT COUNT(*) FROM CRAWLING_TEST WHERE CATALOG_PATH LIKE("' + sFindPath + '%")'
     datas = cursor.execute(sSQL)
 
     nCatalogPathCount = 0
@@ -119,7 +125,7 @@ def isDBCatalogCode(sFindCatalogCode):
         sys.exit(1)
         g_SQLite.close()
 
-    sSQL = 'SELECT COUNT(*) FROM Products WHERE CatalogCode = "' + sFindCatalogCode + '"'
+    sSQL = 'SELECT COUNT(*) FROM CRAWLING_TEST WHERE CatalogCode = "' + sFindCatalogCode + '"'
     datas = cursor.execute(sSQL)
 
     nCatalogPathCount = 0
@@ -141,7 +147,7 @@ def insertDBProduct(sCatalogPath, sCatalog, sProduct, nDepth, sProductURL):
         sys.exit(1)
         g_SQLite.close()
 
-    sSQL = "INSERT INTO Products (Version, Depth, CatalogPath, CatalogCode, Code, DetailURL)"\
+    sSQL = "INSERT INTO CRAWLING_TEST (Version, Depth, CatalogPath, CatalogCode, Code, DetailURL)"\
            "            VALUES (?, ?, ?, ?, ?, ?);"
 
     cursor.execute(sSQL, (g_sVersion, nDepth, sCatalogPath + sCatalog, sCatalog, sProduct, sProductURL))
@@ -159,7 +165,8 @@ def isFindCatalogPath(sCatalogPath, sCatalogCode) :
     return False
 
 ###################################################################################################
-def getEnumProductListPages(driver, nWaitMaxTime, sLastCatalogPath, sURL, sCatalogPath, nDepth, bFindCatalogPath) :
+def getEnumCatalogListPages(driver, nWaitMaxTime, sLastCatalogPath, sURL, sCatalogPath, nDepth, bFindCatalogPath) :
+    # 해당 url로 부터 카탈로그 가져오기
     sCatalogCode            = getCatalogCodeFromURL(sURL)
 
     if isFindCatalogPath(sCatalogPath, sCatalogCode):
@@ -168,9 +175,7 @@ def getEnumProductListPages(driver, nWaitMaxTime, sLastCatalogPath, sURL, sCatal
     sCurrentCatalogPath     = sCatalogPath + sCatalogCode
     bCurrentFindCatalogPath = True
 
-    #if isDBCatalogCode(sCatalogCode):
-    #   return
-
+    # 해당 카탈로그 저장되어 있는지 확인
     if bFindCatalogPath :
         if sLastCatalogPath.find(sCurrentCatalogPath) == 0 :
             bCurrentFindCatalogPath = True
@@ -183,26 +188,21 @@ def getEnumProductListPages(driver, nWaitMaxTime, sLastCatalogPath, sURL, sCatal
     
     ###############################################################################################
     if not bCurrentFindCatalogPath:
+        # 카틸로그 중복저장 확인
         if isDBCatalogCode(sCatalogCode) > 0 :
             return
 
     ###############################################################################################
     elements = zoneUtils.seleniumLoadPage(driver, nWaitMaxTime, 10, sURL, "li a[href*='controller-page.html?TablePage']")
     
+    
     if elements is None:
+        # 크로링 데이터가 존재 할때
        appendProducts(driver, nWaitMaxTime, sCatalogCode, sCatalogPath, nDepth + 1)
        return 
-
-    insertDBProduct(sCatalogPath, sCatalogCode, "", nDepth, "")
-
-    sCatalogPath = sCurrentCatalogPath + "\\"
-    dicCatalogs  = {}
-    for element in elements:
-        href = element.get_attribute('href')
-        dicCatalogs[href] = href
-    
-    for catalog in dicCatalogs:
-        getEnumProductListPages(driver, nWaitMaxTime, sLastCatalogPath, catalog, sCatalogPath, nDepth + 1, bCurrentFindCatalogPath)
+    else :
+         # 크로링 데이터가 존재하지 않을때 
+        insertDBProduct(sCatalogPath, sCatalogCode, "", nDepth, "")
 
     return 
 
@@ -248,6 +248,7 @@ def initCrawling():
     ###############################################################################################
     while 1:
         ###########################################################################################
+        # DB 접속
         g_SQLite = initDB(g_sBaseDir)
 
         # 접속 DB 확인
@@ -268,15 +269,18 @@ def initCrawling():
         if elements is None:
             break
 
-        dicCatalogs  = {}
+        arrCatalogs  = {}
+        # 첫page 카타로그 확인
+        i=0
         if elements is not  None:
             for element in elements:
                 href   = element.get_attribute('href')
-                if href.find("controller-page.html?TablePage") > 0 :
-                    dicCatalogs[href] = href
+                if href.find("controller-page.html?TablePage") > 0 :                   
+                    arrCatalogs[i] = href
+                    i = i+1
 
-        for catalog in dicCatalogs:
-            getEnumProductListPages(g_WebBroswer, g_nWaitMaxTime, sLastCatalogPath, catalog, "", 0, True)
+        for catalog in arrCatalogs:
+            getEnumCatalogListPages(g_WebBroswer, g_nWaitMaxTime, sLastPath, catalog, "", 0, True)
 
         break
     ###############################################################################################
