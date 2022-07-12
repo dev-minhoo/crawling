@@ -137,7 +137,7 @@ def isDBCatalogCode(sFindCatalogCode):
     return nCatalogPathCount    
 
 ###################################################################################################
-def insertDBProduct(sCatalogPath, sCatalog, sProduct, nDepth, sProductURL):
+def insertDBProduct(sCatalogPath, sCatalog, sProduct, sProductURL):
     global  g_SQLite, g_sVersion
 
     ###############################################################################################
@@ -147,10 +147,10 @@ def insertDBProduct(sCatalogPath, sCatalog, sProduct, nDepth, sProductURL):
         sys.exit(1)
         g_SQLite.close()
 
-    sSQL = "INSERT INTO CRAWLING_TEST (Version, Depth, CatalogPath, CatalogCode, Code, DetailURL)"\
+    sSQL = "INSERT INTO CRAWLING_TEST (CATALOG_PATH, CATALOG, COMMENT, CREATE_ON, DetailURL)"\
            "            VALUES (?, ?, ?, ?, ?, ?);"
 
-    cursor.execute(sSQL, (g_sVersion, nDepth, sCatalogPath + sCatalog, sCatalog, sProduct, sProductURL))
+    cursor.execute(sSQL, (sCatalogPath + sCatalog, "", sProduct, sProductURL))
     g_SQLite.commit()
     return
 
